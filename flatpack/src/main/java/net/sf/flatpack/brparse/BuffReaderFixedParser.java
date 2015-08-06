@@ -54,7 +54,7 @@ import org.slf4j.LoggerFactory;
 
 
 /**
- * 
+ *
  *
  * @author Paul Zepernick
  */
@@ -67,9 +67,9 @@ public class BuffReaderFixedParser extends FixedLengthParser implements Interfac
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BuffReaderFixedParser.class);
 
-    
+
     /**
-     * 
+     *
      * @param pzmapXMLStream
      * @param dataSourceStream
      */
@@ -77,9 +77,9 @@ public class BuffReaderFixedParser extends FixedLengthParser implements Interfac
         super(pzmapXMLStream, dataSourceStream);
     }
 
-    
+
     /**
-     * 
+     *
      * @param pzmapXML
      * @param dataSource
      */
@@ -88,15 +88,15 @@ public class BuffReaderFixedParser extends FixedLengthParser implements Interfac
     }
 
     /**
-     * 
-     * 
+     *
+     *
      * @param pzmapXML
      * @param dataSource
      */
     public BuffReaderFixedParser(final Reader pzmapXML, final Reader dataSource) {
         super(pzmapXML, dataSource);
     }
-    
+
     protected BuffReaderFixedParser(final Reader dataSourceReader, final String dataDefinition) {
         super(dataSourceReader, dataDefinition);
     }
@@ -135,47 +135,45 @@ public class BuffReaderFixedParser extends FixedLengthParser implements Interfac
 	            if (line.trim().length() == 0) {
 	                continue;
 	            }
-	
+
 	            final String mdkey = FixedWidthParserUtils.getCMDKey(getPzMetaData(), line);
 	            final int recordLength = ((Integer) recordLengths.get(mdkey)).intValue();
-	
+
+	            final Row row = new Row();
+	            row.setMdkey(mdkey.equals(FPConstants.DETAIL_ID) ? null : mdkey);
+
+	            final List<ColumnMetaData> cmds = ParserUtils.getColumnMetaData(mdkey, getPzMetaData());
+
+	            row.setRowNumber(lineCount);
+
 	            if (line.length() > recordLength) {
 	                // Incorrect record length on line log the error. Line will not
 	                // be included in the
 	                // dataset
 	                if (isIgnoreExtraColumns()) {
+	                    addError(ds, "TRUNCATED LINE TO CORRECT LENGTH", lineCount, 1);
 	                    //user has chosen to ignore the fact that we have too many bytes in the fixed
 	                    //width file.  Truncate the line to the correct length
-	                    line = line.substring(0, recordLength);
-	                    addError(ds, "TRUNCATED LINE TO CORRECT LENGTH", lineCount, 1);
+	                    row.addColumn(FixedWidthParserUtils.splitFixedText(cmds, line.substring(0, recordLength)));
 	                } else {
-	                    addError(ds, "LINE TOO LONG. LINE IS " + line.length() + " LONG. SHOULD BE " + recordLength, lineCount, 2, 
+	                    addError(ds, "LINE TOO LONG. LINE IS " + line.length() + " LONG. SHOULD BE " + recordLength, lineCount, 2,
 	                            isStoreRawDataToDataError() ? line : null);
 	                    continue;
 	                }
 	            } else if (line.length() < recordLength) {
 	                if (isHandlingShortLines()) {
-	                    // We can pad this line out
-	                    line += ParserUtils.padding(recordLength - line.length(), ' ');
-	
 	                    // log a warning
 	                    addError(ds, "PADDED LINE TO CORRECT RECORD LENGTH", lineCount, 1);
-	
+                            // Parser a padded line
+                            row.addColumn(FixedWidthParserUtils.splitFixedText(cmds, line + ParserUtils.padding(recordLength - line.length(), ' ')));
+
 	                } else {
-	                    addError(ds, "LINE TOO SHORT. LINE IS " + line.length() + " LONG. SHOULD BE " + recordLength, lineCount, 2, 
+	                    addError(ds, "LINE TOO SHORT. LINE IS " + line.length() + " LONG. SHOULD BE " + recordLength, lineCount, 2,
 	                            isStoreRawDataToDataError() ? line : null);
 	                    continue;
 	                }
 	            }
-	
-	            final Row row = new Row();
-	            row.setMdkey(mdkey.equals(FPConstants.DETAIL_ID) ? null : mdkey);
-	
-	            final List<ColumnMetaData> cmds = ParserUtils.getColumnMetaData(mdkey, getPzMetaData());
-	            row.addColumn(FixedWidthParserUtils.splitFixedText(cmds, line));
-	
-	            row.setRowNumber(lineCount);
-	            
+
 	            if (isFlagEmptyRows()) {
 	                //user has elected to have the parser flag rows that are empty
 	                row.setEmpty(ParserUtils.isListElementsEmpty(row.getCols()));
@@ -184,11 +182,11 @@ public class BuffReaderFixedParser extends FixedLengthParser implements Interfac
 	                //user told the parser to keep a copy of the raw data in the row
 	                //WARNING potential for high memory usage here
 	                row.setRawData(line);
-	            }   
-	
+	            }
+
 	            return row;
 	        }
-        
+
         } catch(IOException e) {
         	throw new RuntimeException("Error Fetching Record From File...", e);
         }
